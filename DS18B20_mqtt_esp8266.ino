@@ -21,9 +21,8 @@ const char* mqtt_server = "x";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
-long lastMsg = 0;
-char msg[50];
-int value = 0;
+
+String MACStr;
 
 OneWire  onew(2); //Broche D4
 DallasTemperature DS18XXX(&onew);
@@ -31,61 +30,12 @@ DeviceAddress SensorsAddr[3];
 String SensorsAddrStr[3];
 float SensorsTemp[3];
 
-
-void setup_wifi()
+String DeviceAddress2String(DeviceAddress deviceAddress)
 {
-  delay(10);
-  // We start by connecting to a WiFi network
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(WLAN_SSID);
-
-  Serial.print("MAC: ");
-  Serial.println(WiFi.macAddress());
-
-  //WiFi.forceSleepWake();
-  //delay( 1 );
-  
-  // Disable the WiFi persistence.  The ESP8266 will not load and save WiFi settings in the flash memory.
-  WiFi.persistent( false );
-  
-  WiFi.mode( WIFI_STA );
-  WiFi.begin( WLAN_SSID, WLAN_PASSWD );
-
-  int _try = 0;
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-    _try++;
-    
-    if ( _try >= NB_TRYWIFI )
-    {
-      Serial.println("Impossible to connect WiFi network, go to deep sleep");
-      //ESP.deepSleep(durationSleep * 1000000);
-    }    
-  }
-
-  randomSeed(micros());
-
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
-
-  //WiFi.printDiag(Serial);  
-}
-
-void callback(char* topic, byte* payload, unsigned int length)
-{
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++) 
-  {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
+  char straddr[16];
+  sprintf(straddr, "%02X%02X%02X%02X%02X%02X%02X%02X", deviceAddress[0], deviceAddress[1], deviceAddress[2], deviceAddress[3], deviceAddress[4], deviceAddress[5], deviceAddress[6], deviceAddress[7]);
+  String tmp(straddr);  
+  return tmp;
 }
 
 void reconnect()
@@ -121,44 +71,49 @@ void reconnect()
 
 void setup() 
 {
+  //---------------------------------------------------------------
+  // Init WIFI et MQTT
+  //---------------------------------------------------------------  
   pinMode(2, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
-  digitalWrite(2, 1); // set pin to the opposite state
-    
+  digitalWrite(2, 0); // set pin to the opposite state
+  
   Serial.begin(115200);
-  setup_wifi();
-  client.setServer(mqtt_server, 1883);
-  client.setCallback(callback);
-}
 
-void DeviceAddress2String(DeviceAddress deviceAddress, char *straddr)
-{
-  sprintf(straddr, "%02X%02X%02X%02X%02X%02X%02X%02X", deviceAddress[0], deviceAddress[1], deviceAddress[2], deviceAddress[3], deviceAddress[4], deviceAddress[5], deviceAddress[6], deviceAddress[7]);
-}
+  delay(10);
 
-void loop()
-{
-  //---------------------------------------------------------------
-  // MQTT
-  //---------------------------------------------------------------
-/*  if (!client.connected())
+  MACStr = WiFi.macAddress();
+
+  // Disable the WiFi persistence.  The ESP8266 will not load and save WiFi settings in the flash memory.
+  WiFi.persistent( false );
+  
+  WiFi.mode( WIFI_STA );
+  WiFi.begin( WLAN_SSID, WLAN_PASSWD );
+
+  int _try = 0;
+  while (WiFi.status() != WL_CONNECTED)
   {
-    reconnect();
+    delay(500);
+    Serial.print(".");
+    _try++;
+    
+    if ( _try >= NB_TRYWIFI )
+    {
+      //Impossible to connect WiFi network, go to deep sleep
+      ESP.deepSleep(durationSleep * 1000000);
+    }    
   }
-  client.loop();
 
-  long now = millis();
-  if (now - lastMsg > 2000)
-  {
-    lastMsg = now;
-    ++value;
-    snprintf (msg, 50, "hello world #%ld", value);
-    Serial.print("Publish message: ");
-    Serial.println(msg);
-    client.publish("outTopic", msg);
-    ESP.deepSleep(durationSleep * 1000000);
-  }*/
+  randomSeed(micros());
+
+  digitalWrite(2, 1);
+
+  client.setServer(mqtt_server, 1883);
   //---------------------------------------------------------------  
 
+
+  //---------------------------------------------------------------
+  // Lecture température
+  //---------------------------------------------------------------
   DS18XXX.begin();
   
   int available = DS18XXX.getDeviceCount();
@@ -168,10 +123,7 @@ void loop()
   {
     if(DS18XXX.getAddress(SensorsAddr[x], x))
     {
-      char straddr[16];
-      DeviceAddress2String(SensorsAddr[x], straddr);
-      String tmp(straddr);
-      SensorsAddrStr[x] = tmp;
+      SensorsAddrStr[x] = DeviceAddress2String(SensorsAddr[x]);
       
       SensorsTemp[x] = DS18XXX.getTempC(SensorsAddr[x]);
 
@@ -179,4 +131,36 @@ void loop()
       Serial.println(SensorsTemp[x]);
     }
   }
+  //---------------------------------------------------------------
+
+
+  //---------------------------------------------------------------
+  // MQTT
+  //---------------------------------------------------------------
+  if (!client.connected())
+  {
+    reconnect();
+  }
+  client.loop();
+
+  char payload[10];
+  char topic[50];
+  String topictmp;
+  
+  snprintf (payload, 10, "%f", SensorsTemp[0]);
+  topictmp = MACStr + "/" + SensorsAddrStr[0];
+  topictmp.toCharArray(topic, 50);
+  
+  Serial.print("Publish message: ");
+  Serial.println(topic);
+  Serial.println(payload);
+  client.publish(topic, payload);
+  
+  ESP.deepSleep(durationSleep * 1000000);
+  //---------------------------------------------------------------       
+}
+
+
+void loop()
+{
 }
