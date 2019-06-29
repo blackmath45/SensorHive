@@ -12,12 +12,14 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-#define durationSleep 60 // secondes
+#define SLEEPDURATION 60 // secondes
 #define NB_TRYWIFI 10 // nbr d'essai connexion WiFi, number of try to connect WiFi
 
 const char* WLAN_SSID = "x";
 const char* WLAN_PASSWD = "x";
-const char* mqtt_server = "x";
+const char* MQTT_SERVER = "x";
+const char* MQTT_USER = "x";
+const char* MQTT_PWD = "x";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -37,47 +39,12 @@ String DeviceAddress2String(DeviceAddress deviceAddress)
   String tmp(straddr);  
   return tmp;
 }
-
-void reconnect()
-{
-  // Loop until we're reconnected
-  while (!client.connected())
-  {
-    Serial.print("Attempting MQTT connection...");
-    
-    // Create a random client ID
-    String clientId = "ESP8266Client-";
-    clientId += String(random(0xffff), HEX);
-    
-    // Attempt to connect
-    if (client.connect(clientId.c_str()))
-    {
-      Serial.println("connected");
-      // Once connected, publish an announcement...
-      client.publish("outTopic", "hello world");
-      // ... and resubscribe
-      client.subscribe("inTopic");
-    }
-    else
-    {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
-    }
-  }
-}
-
 void setup() 
 {
   //---------------------------------------------------------------
   // Init WIFI et MQTT
-  //---------------------------------------------------------------  
-  pinMode(2, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
-  digitalWrite(2, 0); // set pin to the opposite state
-  
-  Serial.begin(115200);
+  //---------------------------------------------------------------   
+  //Serial.begin(115200);
 
   delay(10);
 
@@ -93,21 +60,19 @@ void setup()
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(500);
-    Serial.print(".");
+    //Serial.print(".");
     _try++;
     
     if ( _try >= NB_TRYWIFI )
     {
       //Impossible to connect WiFi network, go to deep sleep
-      ESP.deepSleep(durationSleep * 1000000);
+      ESP.deepSleep(SLEEPDURATION * 1000000);
     }    
   }
 
   randomSeed(micros());
 
-  digitalWrite(2, 1);
-
-  client.setServer(mqtt_server, 1883);
+  client.setServer(MQTT_SERVER, 1883);
   //---------------------------------------------------------------  
 
 
@@ -127,8 +92,8 @@ void setup()
       
       SensorsTemp[x] = DS18XXX.getTempC(SensorsAddr[x]);
 
-      Serial.println(SensorsAddrStr[x]);
-      Serial.println(SensorsTemp[x]);
+      //Serial.println(SensorsAddrStr[x]);
+      //Serial.println(SensorsTemp[x]);
     }
   }
   //---------------------------------------------------------------
@@ -137,26 +102,36 @@ void setup()
   //---------------------------------------------------------------
   // MQTT
   //---------------------------------------------------------------
+  String topic;
+  String payload;
+
+  topic = "DS18B20";
+  topic += "/";
+  topic += SensorsAddrStr[0];
+  payload = SensorsTemp[0];
+    
   if (!client.connected())
   {
-    reconnect();
+    //Serial.print("Attempting MQTT connection...");
+    
+    if (client.connect(MACStr.c_str(), MQTT_USER, MQTT_PWD))
+    {
+      //Serial.print("Publish message: ");
+      //Serial.println(topic);
+      //Serial.println(payload);
+      client.publish(topic.c_str(), payload.c_str());
+    }
+    else
+    {
+      
+    }
   }
+
   client.loop();
 
-  char payload[10];
-  char topic[50];
-  String topictmp;
-  
-  snprintf (payload, 10, "%f", SensorsTemp[0]);
-  topictmp = MACStr + "/" + SensorsAddrStr[0];
-  topictmp.toCharArray(topic, 50);
-  
-  Serial.print("Publish message: ");
-  Serial.println(topic);
-  Serial.println(payload);
-  client.publish(topic, payload);
-  
-  ESP.deepSleep(durationSleep * 1000000);
+  client.disconnect();
+
+  ESP.deepSleep(SLEEPDURATION * 1000000);
   //---------------------------------------------------------------       
 }
 
