@@ -23,6 +23,7 @@
 #include <GxIO/GxIO.h>
 
 #define SLEEPDURATION 240 // secondes
+#define LONGSLEEPDURATION 1800 // secondes
 #define NB_TRYWIFI 10 // nbr d'essai connexion WiFi, number of try to connect WiFi
 #define NB_WAITMQTT 5
 //#define SERIAL_DEBUG
@@ -47,11 +48,11 @@ float SensorsTemp[3];
 // Connexions
 // D0 = RST (EPaper) + RST (ESP8266) pour le deepsleep
 // D1 = CS
-// D2 = Busy
-// D3 = DC
+// D2 = Busy violet
+// D3 = DC vert
 // D4 = OneWire
-// D5 = CLK
-// D7 = DIN
+// D5 = CLK jaune
+// D7 = DIN bleu
 
 GxIO_Class io(SPI, /*CS=D1*/ 5, /*DC=D3*/ 0, /*RST=D4*/ -1); // arbitrary selection of D3(=0), D4(=2), selected for default of GxEPD_Class
 GxEPD_Class display(io, /*RST=D4*/ -1, /*BUSY=D2*/ 4); // default selection of D4(=2), D2(=4)
@@ -107,7 +108,7 @@ void setup()
     if ( _try >= NB_TRYWIFI )
     {
       //Impossible to connect WiFi network, go to deep sleep
-      ESP.deepSleep(SLEEPDURATION * 1000000);
+      ESP.deepSleep(LONGSLEEPDURATION * 1000000);
     }    
   }
 
@@ -210,7 +211,10 @@ void setup()
   display.setCursor(0, 0);
   display.println();
   //display.println(name);
-  display.println(payload + "°C");
+  display.print(payload);
+  display.drawCircle(120, 16, 2, GxEPD_BLACK);
+  display.drawCircle(120, 16, 3, GxEPD_BLACK);
+  display.println(" C");
   display.setTextColor(GxEPD_RED);
   display.println(MQTTReceived);
   display.update();
