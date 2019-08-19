@@ -9,6 +9,8 @@
   fichier libraries\GxEPD\src\GxGDEW0154Z17\GxGDEW0154Z17.cpp
   ligne 472 mettre     "if (micros() - start > 40000000) // >14.9s !" au lieu de "if (micros() - start > 20000000) // >14.9s !"
   Car le display WFT0154CZ17LW met 27 secondes à rafraichir, ceci évite les messages de timeout
+
+  Type de carte : LOLIN(WEMOS) D1 R2 & mini
 */
 
 #include <ESP8266WiFi.h>
@@ -22,6 +24,9 @@
 #include <GxIO/GxIO_SPI/GxIO_SPI.h>
 #include <GxIO/GxIO.h>
 
+//---------------------------------------------------------------
+// CONFIGURATION
+//---------------------------------------------------------------   
 #define SLEEPDURATION 240 // secondes
 #define LONGSLEEPDURATION 1800 // secondes
 #define NB_TRYWIFI 10 // nbr d'essai connexion WiFi, number of try to connect WiFi
@@ -33,6 +38,10 @@ const char* WLAN_PASSWD = "x";
 const char* MQTT_SERVER = "x";
 const char* MQTT_USER = "x";
 const char* MQTT_PWD = "x";
+IPAddress ip(x, x, x, x);
+IPAddress subnet(x, x, x, x);
+IPAddress gateway(x, x, x, x);
+//---------------------------------------------------------------   
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -91,7 +100,9 @@ void setup()
 
   // Disable the WiFi persistence.  The ESP8266 will not load and save WiFi settings in the flash memory.
   WiFi.persistent( false );
-  
+
+  WiFi.setOutputPower(20.5);
+  WiFi.config(ip, gateway, subnet);
   WiFi.mode( WIFI_STA );
   WiFi.begin( WLAN_SSID, WLAN_PASSWD );
 
@@ -112,6 +123,10 @@ void setup()
     }    
   }
 
+#if defined(SERIAL_DEBUG)
+    Serial.println(WiFi.localIP());
+#endif  
+  
   randomSeed(micros());
 
   client.setServer(MQTT_SERVER, 1883);
@@ -198,6 +213,8 @@ void setup()
   }
 
   client.disconnect();
+  WiFi.disconnect(); 
+  WiFi.mode( WIFI_OFF );
   //---------------------------------------------------------------
 
 
